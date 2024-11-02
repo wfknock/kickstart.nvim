@@ -91,7 +91,7 @@ vim.g.mapleader = ' '
 vim.g.maplocalleader = ' '
 
 -- Set to true if you have a Nerd Font installed and selected in the terminal
-vim.g.have_nerd_font = false
+vim.g.have_nerd_font = true
 
 -- [[ Setting options ]]
 -- See `:help vim.opt`
@@ -102,7 +102,7 @@ vim.g.have_nerd_font = false
 vim.opt.number = true
 -- You can also add relative line numbers, to help with jumping.
 --  Experiment for yourself to see if you like it!
--- vim.opt.relativenumber = true
+vim.opt.relativenumber = true
 
 -- Enable mouse mode, can be useful for resizing splits for example!
 vim.opt.mouse = 'a'
@@ -215,6 +215,33 @@ if not (vim.uv or vim.loop).fs_stat(lazypath) then
   end
 end ---@diagnostic disable-next-line: undefined-field
 vim.opt.rtp:prepend(lazypath)
+
+-- [[ Extra vim commands ]]
+-- disable netrw at the very start of your init.lua
+vim.g.loaded_netrw = 1
+vim.g.loaded_netrwPlugin = 1
+
+-- optionally enable 24-bit color
+vim.opt.termguicolors = true
+
+-- show whitespace characters
+vim.o.list = true
+vim.o.listchars = 'tab:» ,lead:•,trail:•'
+
+-- highlight trailing whitespace
+vim.api.nvim_set_hl(0, 'TrailingWhitespace', { bg = 'LightRed' })
+vim.api.nvim_create_autocmd('BufEnter', {
+  pattern = '*',
+  command = [[
+        syntax clear TrailingWhitespace |
+        syntax match TrailingWhitespace "\_s\+$"
+    ]],
+})
+
+-- enable lsp diagnostic toggling on/off
+vim.keymap.set('n', '<leader>td', function()
+  vim.diagnostic.enable(not vim.diagnostic.is_enabled())
+end, { silent = true, noremap = true })
 
 -- [[ Configure and install plugins ]]
 --
@@ -824,21 +851,110 @@ require('lazy').setup({
     end,
   },
 
-  { -- You can easily change to a different colorscheme.
-    -- Change the name of the colorscheme plugin below, and then
-    -- change the command in the config to whatever the name of that colorscheme is.
-    --
-    -- If you want to see what colorschemes are already installed, you can use `:Telescope colorscheme`.
-    'folke/tokyonight.nvim',
-    priority = 1000, -- Make sure to load this before all the other start plugins.
-    init = function()
-      -- Load the colorscheme here.
-      -- Like many other themes, this one has different styles, and you could load
-      -- any other, such as 'tokyonight-storm', 'tokyonight-moon', or 'tokyonight-day'.
-      vim.cmd.colorscheme 'tokyonight-night'
+  -- Set gruvbox colorscheme
+  -- { -- You can easily change to a different colorscheme.
+  --   -- Change the name of the colorscheme plugin below, and then
+  --   -- change the command in the config to whatever the name of that colorscheme is.
+  --   --
+  --   -- If you want to see what colorschemes are already installed, you can use `:Telescope colorscheme`.
+  --   'morhetz/gruvbox',
+  --   priority = 1000, -- Make sure to load this before all the other start plugins.
+  --   init = function()
+  --     -- Load the colorscheme here.
+  --     -- Like many other themes, this one has different styles, and you could load
+  --     -- any other, such as 'tokyonight-storm', 'tokyonight-moon', or 'tokyonight-day'.
+  --     vim.cmd.colorscheme 'gruvbox'
+  --
+  --     -- You can configure highlights by doing something like:
+  --     vim.cmd.hi 'Comment gui=none'
+  --   end,
+  -- },
 
-      -- You can configure highlights by doing something like:
-      vim.cmd.hi 'Comment gui=none'
+  -- Set colorcheme to match vs code
+  -- {
+  --   'Mofiqul/vscode.nvim',
+  --   priority = 1000,
+  --   init = function()
+  --     vim.o.background = 'dark'
+  --     vim.cmd.colorscheme 'vscode'
+  --     vim.cmd.hi 'Comment gui=none'
+  --   end,
+  -- },
+
+  -- setup catppuccin theme
+  {
+    'catppuccin/nvim',
+    name = 'catppuccin',
+    priority = 1000,
+    config = function()
+      require('catppuccin').setup {
+        flavour = 'mocha',
+      }
+      -- setup must be called before loading
+      vim.cmd.colorscheme 'catppuccin'
+    end,
+  },
+
+  {
+    'lewis6991/hover.nvim',
+    config = function()
+      require('hover').setup {
+        init = function()
+          -- Require providers
+          require 'hover.providers.lsp'
+          -- require('hover.providers.gh')
+          -- require('hover.providers.gh_user')
+          -- require('hover.providers.jira')
+          -- require('hover.providers.dap')
+          -- require('hover.providers.fold_preview')
+          -- require('hover.providers.diagnostic')
+          -- require('hover.providers.man')
+          -- require('hover.providers.dictionary')
+        end,
+        preview_opts = {
+          border = 'single',
+        },
+        -- Whether the contents of a currently open hover window should be moved
+        -- to a :h preview-window when pressing the hover keymap.
+        preview_window = false,
+        title = true,
+        mouse_providers = {
+          'LSP',
+        },
+        mouse_delay = 1000,
+      }
+      -- Setup keymaps
+      vim.keymap.set('n', 'K', require('hover').hover, { desc = 'hover.nvim' })
+      vim.keymap.set('n', 'gK', require('hover').hover_select, { desc = 'hover.nvim (select)' })
+      vim.keymap.set('n', '<C-p>', function()
+        require('hover').hover_switch 'previous'
+      end, { desc = 'hover.nvim (previous source)' })
+      vim.keymap.set('n', '<C-n>', function()
+        require('hover').hover_switch 'next'
+      end, { desc = 'hover.nvim (next source)' })
+
+      -- Mouse support
+      vim.keymap.set('n', '<MouseMove>', require('hover').hover_mouse, { desc = 'hover.nvim (mouse)' })
+      vim.o.mousemoveevent = true
+    end,
+  },
+
+  -- add cursor highlighter
+  {
+    'yamatsum/nvim-cursorline',
+    config = function()
+      require('nvim-cursorline').setup {
+        cursorline = {
+          enable = true,
+          timeout = 50,
+          number = false,
+        },
+        cursorword = {
+          enable = true,
+          min_length = 3,
+          hl = { underline = true },
+        },
+      }
     end,
   },
 
@@ -882,6 +998,49 @@ require('lazy').setup({
       --  Check out: https://github.com/echasnovski/mini.nvim
     end,
   },
+
+  {
+    'lukas-reineke/indent-blankline.nvim',
+    main = 'ibl',
+    ---@module "ibl"
+    ---@type ibl.config
+    opts = {},
+  },
+
+  {
+    'nvim-tree/nvim-tree.lua',
+    version = '*',
+    lazy = false,
+    dependencies = {
+      'nvim-tree/nvim-web-devicons',
+    },
+    config = function()
+      require('nvim-tree').setup {}
+    end,
+  },
+
+  { 'sindrets/diffview.nvim' },
+
+  {
+    'rasulomaroff/cursor.nvim',
+    event = 'VeryLazy',
+    opts = {
+      -- Your options go here
+    },
+    config = function()
+      require('cursor').setup {
+        overwrite_cursor = true,
+        cursors = {
+          {
+            mode = 'a',
+            shape = 'block',
+            blink = { wait = 100, default = 400 },
+          },
+        },
+      }
+    end,
+  },
+
   { -- Highlight, edit, and navigate code
     'nvim-treesitter/nvim-treesitter',
     build = ':TSUpdate',
