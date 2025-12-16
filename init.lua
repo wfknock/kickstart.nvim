@@ -91,7 +91,7 @@ vim.g.mapleader = ' '
 vim.g.maplocalleader = ' '
 
 -- Set to true if you have a Nerd Font installed and selected in the terminal
-vim.g.have_nerd_font = false
+vim.g.have_nerd_font = true
 
 -- [[ Setting options ]]
 -- See `:help vim.o`
@@ -102,7 +102,7 @@ vim.g.have_nerd_font = false
 vim.o.number = true
 -- You can also add relative line numbers, to help with jumping.
 --  Experiment for yourself to see if you like it!
--- vim.o.relativenumber = true
+vim.opt.relativenumber = true
 
 -- Enable mouse mode, can be useful for resizing splits for example!
 vim.o.mouse = 'a'
@@ -234,6 +234,33 @@ end
 local rtp = vim.opt.rtp
 rtp:prepend(lazypath)
 
+-- [[ Extra vim commands ]]
+-- disable netrw at the very start of your init.lua
+vim.g.loaded_netrw = 1
+vim.g.loaded_netrwPlugin = 1
+
+-- optionally enable 24-bit color
+vim.opt.termguicolors = true
+
+-- show whitespace characters
+vim.o.list = true
+vim.o.listchars = 'tab:» ,lead:•,trail:•'
+
+-- highlight trailing whitespace
+vim.api.nvim_set_hl(0, 'TrailingWhitespace', { bg = 'LightRed' })
+vim.api.nvim_create_autocmd('BufEnter', {
+  pattern = '*',
+  command = [[
+        syntax clear TrailingWhitespace |
+        syntax match TrailingWhitespace "\_s\+$"
+    ]],
+})
+
+-- enable lsp diagnostic toggling on/off
+vim.keymap.set('n', '<leader>td', function()
+  vim.diagnostic.enable(not vim.diagnostic.is_enabled())
+end, { silent = true, noremap = true, desc = 'Toggle lsp diagnostics' })
+
 -- [[ Configure and install plugins ]]
 --
 --  To check the current status of your plugins, run
@@ -346,6 +373,7 @@ require('lazy').setup({
       spec = {
         { '<leader>s', group = '[S]earch' },
         { '<leader>t', group = '[T]oggle' },
+        { '<leader>d', group = '[D]ebug' },
         { '<leader>h', group = 'Git [H]unk', mode = { 'n', 'v' } },
       },
     },
@@ -380,6 +408,14 @@ require('lazy').setup({
 
       -- Useful for getting pretty icons, but requires a Nerd Font.
       { 'nvim-tree/nvim-web-devicons', enabled = vim.g.have_nerd_font },
+
+      -- Add telescope live grep args extension for better live grep filtering.
+      {
+        'nvim-telescope/telescope-live-grep-args.nvim',
+        -- This will not install any breaking changes.
+        -- For major updates, this must be adjusted manually.
+        version = '^1.0.0',
+      },
     },
     config = function()
       -- Telescope is a fuzzy finder that comes with a lot of different things that
@@ -407,11 +443,16 @@ require('lazy').setup({
         -- You can put your default mappings / updates / etc. in here
         --  All the info you're looking for is in `:help telescope.setup()`
         --
-        -- defaults = {
-        --   mappings = {
-        --     i = { ['<c-enter>'] = 'to_fuzzy_refine' },
-        --   },
-        -- },
+        defaults = {
+          mappings = {
+            i = {
+              ['<c-enter>'] = 'to_fuzzy_refine',
+            },
+            n = {
+              ['<c-d>'] = require('telescope.actions').delete_buffer,
+            },
+          },
+        },
         -- pickers = {}
         extensions = {
           ['ui-select'] = {
@@ -423,6 +464,7 @@ require('lazy').setup({
       -- Enable Telescope extensions if they are installed
       pcall(require('telescope').load_extension, 'fzf')
       pcall(require('telescope').load_extension, 'ui-select')
+      pcall(require('telescope').load_extension, 'live_grep_args')
 
       -- See `:help telescope.builtin`
       local builtin = require 'telescope.builtin'
@@ -436,6 +478,9 @@ require('lazy').setup({
       vim.keymap.set('n', '<leader>sr', builtin.resume, { desc = '[S]earch [R]esume' })
       vim.keymap.set('n', '<leader>s.', builtin.oldfiles, { desc = '[S]earch Recent Files ("." for repeat)' })
       vim.keymap.set('n', '<leader><leader>', builtin.buffers, { desc = '[ ] Find existing buffers' })
+
+      -- custom bindings
+      vim.keymap.set('n', '<leader>sa', ":lua require('telescope').extensions.live_grep_args.live_grep_args()<CR>", { desc = '[S]earch by Grep with [A]rgs' })
 
       -- Slightly advanced example of overriding default behavior and theme
       vim.keymap.set('n', '<leader>/', function()
@@ -654,6 +699,16 @@ require('lazy').setup({
           end,
         },
       }
+
+      -- Change diagnostic symbols in the sign column (gutter)
+      if vim.g.have_nerd_font then
+        local signs = { ERROR = '', WARN = '', INFO = '', HINT = '' }
+        local diagnostic_signs = {}
+        for type, icon in pairs(signs) do
+          diagnostic_signs[vim.diagnostic.severity[type]] = icon
+        end
+        vim.diagnostic.config { signs = { text = diagnostic_signs } }
+      end
 
       -- LSP servers and clients are able to communicate to each other what features they support.
       --  By default, Neovim doesn't support everything that is in the LSP specification.
@@ -876,26 +931,205 @@ require('lazy').setup({
     },
   },
 
-  { -- You can easily change to a different colorscheme.
-    -- Change the name of the colorscheme plugin below, and then
-    -- change the command in the config to whatever the name of that colorscheme is.
-    --
-    -- If you want to see what colorschemes are already installed, you can use `:Telescope colorscheme`.
-    'folke/tokyonight.nvim',
-    priority = 1000, -- Make sure to load this before all the other start plugins.
+  -- { -- You can easily change to a different colorscheme.
+  --   -- Change the name of the colorscheme plugin below, and then
+  --   -- change the command in the config to whatever the name of that colorscheme is.
+  --   --
+  --   -- If you want to see what colorschemes are already installed, you can use `:Telescope colorscheme`.
+  --   'folke/tokyonight.nvim',
+  --   priority = 1000, -- Make sure to load this before all the other start plugins.
+  --   config = function()
+  --     ---@diagnostic disable-next-line: missing-fields
+  --     require('tokyonight').setup {
+  --       styles = {
+  --         comments = { italic = false }, -- Disable italics in comments
+  --       },
+  --     }
+
+  --     -- Load the colorscheme here.
+  --     -- Like many other themes, this one has different styles, and you could load
+  --     -- any other, such as 'tokyonight-storm', 'tokyonight-moon', or 'tokyonight-day'.
+  --     vim.cmd.colorscheme 'tokyonight-night'
+  --   },
+
+  -- Set gruvbox colorscheme
+  -- { -- You can easily change to a different colorscheme.
+  --   -- Change the name of the colorscheme plugin below, and then
+  --   -- change the command in the config to whatever the name of that colorscheme is.
+  --   --
+  --   -- If you want to see what colorschemes are already installed, you can use `:Telescope colorscheme`.
+  --   'morhetz/gruvbox',
+  --   priority = 1000, -- Make sure to load this before all the other start plugins.
+  --   init = function()
+  --     -- Load the colorscheme here.
+  --     -- Like many other themes, this one has different styles, and you could load
+  --     -- any other, such as 'tokyonight-storm', 'tokyonight-moon', or 'tokyonight-day'.
+  --     vim.cmd.colorscheme 'gruvbox'
+  --
+  --     -- You can configure highlights by doing something like:
+  --     vim.cmd.hi 'Comment gui=none'
+  --   end,
+  -- },
+
+  -- Set colorcheme to match vs code
+  -- {
+  --   'Mofiqul/vscode.nvim',
+  --   priority = 1000,
+  --   init = function()
+  --     vim.o.background = 'dark'
+  --     vim.cmd.colorscheme 'vscode'
+  --     vim.cmd.hi 'Comment gui=none'
+  --   end,
+  -- },
+
+  -- setup catppuccin theme
+  {
+    'catppuccin/nvim',
+    name = 'catppuccin',
+    priority = 1000,
     config = function()
-      ---@diagnostic disable-next-line: missing-fields
-      require('tokyonight').setup {
-        styles = {
-          comments = { italic = false }, -- Disable italics in comments
+      require('catppuccin').setup {
+        flavour = 'mocha',
+      }
+      -- setup must be called before loading
+      vim.cmd.colorscheme 'catppuccin'
+    end,
+  },
+
+  {
+    'lewis6991/hover.nvim',
+    config = function()
+      require('hover').setup {
+        init = function()
+          -- Require providers
+          require 'hover.providers.lsp'
+          -- require('hover.providers.gh')
+          -- require('hover.providers.gh_user')
+          -- require('hover.providers.jira')
+          -- require('hover.providers.dap')
+          -- require('hover.providers.fold_preview')
+          -- require('hover.providers.diagnostic')
+          -- require('hover.providers.man')
+          -- require('hover.providers.dictionary')
+        end,
+        preview_opts = {
+          border = 'single',
+        },
+        -- Whether the contents of a currently open hover window should be moved
+        -- to a :h preview-window when pressing the hover keymap.
+        preview_window = false,
+        title = true,
+        mouse_providers = {
+          'LSP',
+        },
+        mouse_delay = 1000,
+      }
+      -- Setup keymaps
+      vim.keymap.set('n', 'K', require('hover').hover, { desc = 'hover.nvim' })
+      vim.keymap.set('n', 'gK', require('hover').hover_select, { desc = 'hover.nvim (select)' })
+      vim.keymap.set('n', '<C-p>', function()
+        require('hover').hover_switch 'previous'
+      end, { desc = 'hover.nvim (previous source)' })
+      vim.keymap.set('n', '<C-n>', function()
+        require('hover').hover_switch 'next'
+      end, { desc = 'hover.nvim (next source)' })
+
+      -- Mouse support
+      vim.keymap.set('n', '<MouseMove>', require('hover').hover_mouse, { desc = 'hover.nvim (mouse)' })
+      vim.o.mousemoveevent = true
+    end,
+  },
+
+  -- add cursor highlighter
+  {
+    'yamatsum/nvim-cursorline',
+    config = function()
+      require('nvim-cursorline').setup {
+        cursorline = {
+          enable = true,
+          timeout = 50,
+          number = false,
+        },
+        cursorword = {
+          enable = true,
+          min_length = 3,
+          hl = { underline = true },
         },
       }
-
-      -- Load the colorscheme here.
-      -- Like many other themes, this one has different styles, and you could load
-      -- any other, such as 'tokyonight-storm', 'tokyonight-moon', or 'tokyonight-day'.
-      vim.cmd.colorscheme 'tokyonight-night'
     end,
+  },
+
+  -- add log file viewer
+  {
+    'fei6409/log-highlight.nvim',
+    config = function()
+      require('log-highlight').setup {}
+    end,
+  },
+
+  -- add csv viewer
+  {
+    'hat0uma/csvview.nvim',
+    config = function()
+      require('csvview').setup {
+        view = {
+          display_mode = 'border', -- changes csv outline
+        },
+      }
+    end,
+  },
+
+  -- add class, fx, method quick nav
+  {
+    'stevearc/aerial.nvim',
+    opts = {},
+    -- Optional dependencies
+    dependencies = {
+      'nvim-treesitter/nvim-treesitter',
+      'nvim-tree/nvim-web-devicons',
+    },
+    config = function()
+      require('aerial').setup {
+        -- optionally use on_attach to set keymaps when aerial has attached to a buffer
+        on_attach = function(bufnr)
+          -- Jump forwards/backwards with '{' and '}'
+          vim.keymap.set('n', '{', '<cmd>AerialPrev<CR>', { buffer = bufnr })
+          vim.keymap.set('n', '}', '<cmd>AerialNext<CR>', { buffer = bufnr })
+        end,
+      }
+      -- You probably also want to set a keymap to toggle aerial
+      vim.keymap.set('n', '<leader>ta', '<cmd>AerialToggle!<CR>', { desc = 'Toggle aerial quick nav window' })
+    end,
+  },
+
+  -- toggle comments and comment blocks
+  {
+    'numToStr/Comment.nvim',
+    opts = {
+      -- add any options here
+    },
+  },
+
+  -- add neoscroll for smooth scrolling
+  {
+    'karb94/neoscroll.nvim',
+    opts = {
+      -- All these keys will be mapped to their corresponding default scrolling animation
+      mappings = { '<C-u>', '<C-d>', '<C-b>', '<C-f>', '<C-y>', '<C-e>', 'zt', 'zz', 'zb' },
+      hide_cursor = true, -- Hide cursor while scrolling
+      stop_eof = true, -- Stop at <EOF> when scrolling downwards
+      respect_scrolloff = false, -- Stop scrolling when the cursor reaches the scrolloff margin of the file
+      cursor_scrolls_alone = true, -- The cursor will keep on scrolling even if the window cannot scroll further
+      duration_multiplier = 1.0, -- Global duration multiplier
+      easing = 'linear', -- Default easing function
+      pre_hook = nil, -- Function to run before the scrolling animation starts
+      post_hook = nil, -- Function to run after the scrolling animation ends
+      performance_mode = false, -- Disable "Performance Mode" on all buffers.
+      ignored_events = { -- Events ignored while scrolling
+        'WinScrolled',
+        'CursorMoved',
+      },
+    },
   },
 
   -- Highlight todo, notes, etc in comments
@@ -919,25 +1153,85 @@ require('lazy').setup({
       -- - sr)'  - [S]urround [R]eplace [)] [']
       require('mini.surround').setup()
 
-      -- Simple and easy statusline.
-      --  You could remove this setup call if you don't like it,
-      --  and try some other statusline plugin
-      local statusline = require 'mini.statusline'
-      -- set use_icons to true if you have a Nerd Font
-      statusline.setup { use_icons = vim.g.have_nerd_font }
-
-      -- You can configure sections in the statusline by overriding their
-      -- default behavior. For example, here we set the section for
-      -- cursor location to LINE:COLUMN
-      ---@diagnostic disable-next-line: duplicate-set-field
-      statusline.section_location = function()
-        return '%2l:%-2v'
-      end
+      -- -- Simple and easy statusline.
+      -- --  You could remove this setup call if you don't like it,
+      -- --  and try some other statusline plugin
+      -- local statusline = require 'mini.statusline'
+      -- -- set use_icons to true if you have a Nerd Font
+      -- statusline.setup { use_icons = vim.g.have_nerd_font }
+      --
+      -- -- You can configure sections in the statusline by overriding their
+      -- -- default behavior. For example, here we set the section for
+      -- -- cursor location to LINE:COLUMN
+      -- ---@diagnostic disable-next-line: duplicate-set-field
+      -- statusline.section_location = function()
+      --   return '%2l:%-2v'
+      -- end
 
       -- ... and there is more!
       --  Check out: https://github.com/echasnovski/mini.nvim
     end,
   },
+
+  {
+    'lukas-reineke/indent-blankline.nvim',
+    main = 'ibl',
+    ---@module "ibl"
+    ---@type ibl.config
+    opts = {},
+  },
+
+  {
+    'nvim-tree/nvim-tree.lua',
+    version = '*',
+    lazy = false,
+    dependencies = {
+      'nvim-tree/nvim-web-devicons',
+    },
+    config = function()
+      require('nvim-tree').setup {}
+      -- Add nvim tree binding to toggle tree on/off
+      vim.keymap.set('n', '<leader>tt', '<cmd>NvimTreeToggle<CR>', { desc = 'Toggle nvim tree' })
+    end,
+  },
+
+  {
+    'sindrets/diffview.nvim',
+    config = function()
+      require('diffview').setup {}
+
+      vim.keymap.set('n', '<leader>tv', function()
+        if next(require('diffview.lib').views) == nil then
+          vim.cmd 'DiffviewOpen'
+        else
+          vim.cmd 'DiffviewClose'
+        end
+      end, { desc = 'Toggle Diffview' })
+    end,
+  },
+
+  { 'github/copilot.vim' },
+
+  {
+    'rasulomaroff/cursor.nvim',
+    event = 'VeryLazy',
+    opts = {
+      -- Your options go here
+    },
+    config = function()
+      require('cursor').setup {
+        overwrite_cursor = true,
+        cursors = {
+          {
+            mode = 'a',
+            shape = 'block',
+            blink = { wait = 100, default = 400 },
+          },
+        },
+      }
+    end,
+  },
+
   { -- Highlight, edit, and navigate code
     'nvim-treesitter/nvim-treesitter',
     build = ':TSUpdate',
@@ -962,6 +1256,231 @@ require('lazy').setup({
     --    - Incremental selection: Included, see `:help nvim-treesitter-incremental-selection-mod`
     --    - Show your current context: https://github.com/nvim-treesitter/nvim-treesitter-context
     --    - Treesitter + textobjects: https://github.com/nvim-treesitter/nvim-treesitter-textobjects
+  },
+
+  {
+    'lewis6991/gitsigns.nvim',
+    config = function()
+      require('gitsigns').setup {
+        vim.keymap.set('n', '<leader>tb', require('gitsigns').toggle_current_line_blame, { desc = 'Toggle gitsigns current line blame' }),
+      }
+    end,
+  },
+
+  -- -- add bufferline
+  -- {
+  --   'akinsho/bufferline.nvim',
+  --   version = '*',
+  --   dependencies = 'nvim-tree/nvim-web-devicons',
+  --   options = {
+  --     offsets = {
+  --       { filetype = 'NvimTree', text = 'File Explorer', text_align = 'center' },
+  --     },
+  --   },
+  -- },
+  --
+
+  -- add lualine
+  {
+    'nvim-lualine/lualine.nvim',
+    dependencies = { 'nvim-tree/nvim-web-devicons' },
+    config = function()
+      require('lualine').setup {
+        options = {
+          icons_enabled = true,
+          theme = 'auto',
+          component_separators = { left = '', right = '' },
+          section_separators = { left = '', right = '' },
+          disabled_filetypes = {
+            'NvimTree',
+            'aerial',
+          },
+          ignore_focus = {},
+          always_divide_middle = true,
+          always_show_tabline = true,
+          globalstatus = false,
+          refresh = {
+            statusline = 100,
+            tabline = 100,
+            winbar = 100,
+          },
+        },
+        sections = {
+          lualine_a = { 'mode' },
+          lualine_b = { 'branch', 'diff', 'diagnostics' },
+          lualine_c = { 'filename' },
+          lualine_x = { 'encoding', 'fileformat', 'filetype' },
+          lualine_y = { 'progress' },
+          lualine_z = { 'location' },
+        },
+        inactive_sections = {
+          lualine_a = {},
+          lualine_b = {},
+          lualine_c = { 'filename' },
+          lualine_x = { 'location' },
+          lualine_y = {},
+          lualine_z = {},
+        },
+        tabline = {},
+        winbar = {},
+        inactive_winbar = {},
+        extensions = {},
+      }
+    end,
+  },
+
+  -- add navimarks for better marks
+  {
+    'zongben/navimark.nvim',
+    dependencies = {
+      'nvim-telescope/telescope.nvim',
+      'nvim-lua/plenary.nvim',
+    },
+    config = function()
+      require('navimark').setup {
+        --set "" to disable keymapping
+        keymap = {
+          base = {
+            mark_toggle = '<leader>mm',
+            mark_add = '<leader>ma',
+            mark_add_with_title = '<leader>mt',
+            mark_remove = '<leader>mr',
+
+            -- this only goes to the next/previous mark in the same file
+            goto_next_mark = ']m',
+            goto_prev_mark = '[m',
+
+            open_mark_picker = '',
+          },
+          telescope = {
+            n = {
+              delete_mark = 'd',
+              clear_marks = 'c',
+              set_mark_title = 't',
+              next_stack = '<Tab>',
+              prev_stack = '<S-Tab>',
+              new_stack = 'N',
+              rename_stack = 'R',
+              delete_stack = 'D',
+              -- open all marked files in current stack
+              open_all_marked_files = '<C-o>',
+            },
+          },
+        },
+        sign = {
+          text = '',
+          color = '#FF0000',
+          --options: above || eol || eol_right_align || right_align || none
+          -- If set to 'none', you can still assign a title to a mark.
+          -- The title will only appear in Telescope but will not be shown as virt_text in the editor.
+          title_position = 'above',
+        },
+        --set to true to persist stacks and marks
+        persist = true,
+
+        --options: manual || auto
+        --auto: When the cwd changes, if a stack has the same root_dir as the cwd, that stack will be loaded automatically
+        --manual: manage stacks manually
+        stack_mode = 'auto',
+      }
+
+      local stack = require 'navimark.stack'
+      local tele = require 'navimark.tele'
+
+      -- Custom keybindings for navimarks
+      vim.keymap.set('n', '<leader>sm', tele.open_mark_picker, { desc = '[S]earch [M]arks' })
+      vim.keymap.set('n', '<leader>m', '', { desc = '[M]arks (Navimarks)' })
+      vim.keymap.set('n', '<leader>mm', stack.mark_toggle, { desc = 'Toggle mark' })
+      vim.keymap.set('n', '<leader>ma', stack.mark_add, { desc = 'Add mark' })
+      vim.keymap.set('n', '<leader>mt', stack.mark_add_with_title, { desc = 'Add mark with title' })
+      vim.keymap.set('n', '<leader>mr', stack.mark_remove, { desc = 'Remove mark' })
+    end,
+  },
+
+  -- add debugger
+  {
+    'mfussenegger/nvim-dap',
+    dependencies = {
+      'nvim-neotest/nvim-nio',
+      'rcarriga/nvim-dap-ui',
+      'mfussenegger/nvim-dap-python',
+      'theHamsta/nvim-dap-virtual-text',
+    },
+    config = function()
+      local dap = require 'dap'
+      local dapui = require 'dapui'
+      local dap_python = require 'dap-python'
+
+      require('dapui').setup {}
+      require('nvim-dap-virtual-text').setup {
+        commented = true, -- Show virtual text alongside comment
+      }
+
+      dap_python.setup 'python3'
+
+      vim.fn.sign_define('DapBreakpoint', {
+        text = '',
+        texthl = 'DiagnosticSignError',
+        linehl = '',
+        numhl = '',
+      })
+
+      vim.fn.sign_define('DapBreakpointRejected', {
+        text = '', -- or "❌"
+        texthl = 'DiagnosticSignError',
+        linehl = '',
+        numhl = '',
+      })
+
+      vim.fn.sign_define('DapStopped', {
+        text = '', -- or "→"
+        texthl = 'DiagnosticSignWarn',
+        linehl = 'Visual',
+        numhl = 'DiagnosticSignWarn',
+      })
+
+      -- Automatically open/close DAP UI
+      dap.listeners.after.event_initialized['dapui_config'] = function()
+        dapui.open()
+      end
+
+      -- Key bindings for debugger --
+
+      -- Toggle breakpoint
+      vim.keymap.set('n', '<leader>db', function()
+        dap.toggle_breakpoint()
+      end, { desc = 'Toggle breakpoint', noremap = true, silent = true })
+
+      -- Continue / Start
+      vim.keymap.set('n', '<leader>dc', function()
+        dap.continue()
+      end, { desc = 'Start/Continue', noremap = true, silent = true })
+
+      -- Step Over
+      vim.keymap.set('n', '<leader>do', function()
+        dap.step_over()
+      end, { desc = 'Step over', noremap = true, silent = true })
+
+      -- Step Into
+      vim.keymap.set('n', '<leader>di', function()
+        dap.step_into()
+      end, { desc = 'Step into', noremap = true, silent = true })
+
+      -- Step Out
+      vim.keymap.set('n', '<leader>dO', function()
+        dap.step_out()
+      end, { desc = 'Step out', noremap = true, silent = true })
+
+      -- Terminate debugging
+      vim.keymap.set('n', '<leader>dq', function()
+        require('dap').terminate()
+      end, { desc = 'Terminate', noremap = true, silent = true })
+
+      -- Toggle DAP UI
+      vim.keymap.set('n', '<leader>du', function()
+        dapui.toggle()
+      end, { desc = 'Toggle UI', noremap = true, silent = true })
+    end,
   },
 
   -- The following comments only work if you have downloaded the kickstart repo, not just copy pasted the
